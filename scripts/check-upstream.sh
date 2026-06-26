@@ -58,6 +58,19 @@ alpine_digest() {
     | awk 'tolower($1) == "docker-content-digest:" { print $2 }'
 }
 
+# --- alpine release the bare <major>-alpine tag currently ships (informational
+#     only; the digest above is the real lock). Resolved as the highest
+#     <major>-alpineX.Y tag, which is what the bare -alpine tag points at. ---
+alpine_version() {
+  local major="$1"
+  curl -fsSL "https://hub.docker.com/v2/repositories/library/postgres/tags?page_size=100&name=${major}-alpine3" \
+    | jq -r '.results[].name' \
+    | grep -oE "alpine3\.[0-9]+$" \
+    | sed 's/^alpine//' \
+    | sort -t. -k1,1n -k2,2n \
+    | tail -1
+}
+
 cur_pgvector="$(jq -r '.pgvector' "$MANIFEST")"
 new_pgvector="$(latest_pgvector)"
 [ -n "$new_pgvector" ] || { echo "error: could not resolve latest pgvector tag" >&2; exit 1; }
@@ -70,17 +83,28 @@ if [ "$new_pgvector" != "$cur_pgvector" ]; then
   summary+="- pgvector: \`${cur_pgvector}\` → \`${new_pgvector}\`"$'\n'
 fi
 
-# Build the new digest map and detect per-major drift.
+# Build the new digest + alpine-version maps and detect per-major drift.
 digest_args=()
+alpine_args=()
 for major in $MAJORS; do
   cur="$(jq -r --arg m "$major" '.alpine_digests[$m]' "$MANIFEST")"
   new="$(alpine_digest "$major")"
   [ -n "$new" ] || { echo "error: could not resolve digest for postgres:${major}-alpine" >&2; exit 1; }
+
+  cur_av="$(jq -r --arg m "$major" '.alpine_versions[$m] // ""' "$MANIFEST")"
+  new_av="$(alpine_version "$major")"
+  [ -n "$new_av" ] || { echo "error: could not resolve alpine version for postgres:${major}-alpine" >&2; exit 1; }
+
   if [ "$new" != "$cur" ]; then
     changed=1
-    summary+="- postgres:${major}-alpine: \`${cur:0:19}…\` → \`${new:0:19}…\`"$'\n'
+    if [ "$new_av" != "$cur_av" ]; then
+      summary+="- postgres:${major}-alpine: digest \`${cur:0:19}…\` → \`${new:0:19}…\` (alpine ${cur_av:-?} → ${new_av})"$'\n'
+    else
+      summary+="- postgres:${major}-alpine: digest \`${cur:0:19}…\` → \`${new:0:19}…\` (alpine ${new_av})"$'\n'
+    fi
   fi
   digest_args+=(--arg "d${major}" "$new")
+  alpine_args+=(--arg "a${major}" "$new_av")
 done
 
 if [ "$changed" -eq 0 ]; then
@@ -95,6 +119,7 @@ jq \
   --arg pgvector "$new_pgvector" \
   --arg now "$now" \
   "${digest_args[@]}" \
+  "${alpine_args[@]}" \
   '
   .pgvector = $pgvector
   | .last_checked_utc = $now
@@ -102,6 +127,10 @@ jq \
   | .alpine_digests."16" = $d16
   | .alpine_digests."17" = $d17
   | .alpine_digests."18" = $d18
+  | .alpine_versions."15" = $a15
+  | .alpine_versions."16" = $a16
+  | .alpine_versions."17" = $a17
+  | .alpine_versions."18" = $a18
   ' "$MANIFEST" > "$tmp"
 mv "$tmp" "$MANIFEST"
 

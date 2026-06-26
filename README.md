@@ -13,12 +13,16 @@ Multi-arch (`linux/amd64` + `linux/arm64`) images for Postgres **15, 16, 17, 18*
 
 Current source of truth: [`manifest.json`](./manifest.json) — **pgvector `0.8.3`**, last checked `2026-06-26`.
 
-| PG major | Moving tag | Pinned (recommended) | Arch | pgvector |
-|---|---|---|---|---|
-| 15 | `ghcr.io/jonathanmcohen/pgvector:15` | `:15-0.8.3` | amd64, arm64 | 0.8.3 |
-| 16 | `ghcr.io/jonathanmcohen/pgvector:16` | `:16-0.8.3` | amd64, arm64 | 0.8.3 |
-| 17 | `ghcr.io/jonathanmcohen/pgvector:17` | `:17-0.8.3` | amd64, arm64 | 0.8.3 |
-| 18 | `ghcr.io/jonathanmcohen/pgvector:18` | `:18-0.8.3` | amd64, arm64 | 0.8.3 |
+| PG major | Moving tag | Pinned (recommended) | Arch | Alpine | pgvector |
+|---|---|---|---|---|---|
+| 15 | `ghcr.io/jonathanmcohen/pgvector:15` | `:15-0.8.3` | amd64, arm64 | 3.24 | 0.8.3 |
+| 16 | `ghcr.io/jonathanmcohen/pgvector:16` | `:16-0.8.3` | amd64, arm64 | 3.24 | 0.8.3 |
+| 17 | `ghcr.io/jonathanmcohen/pgvector:17` | `:17-0.8.3` | amd64, arm64 | 3.24 | 0.8.3 |
+| 18 | `ghcr.io/jonathanmcohen/pgvector:18` | `:18-0.8.3` | amd64, arm64 | 3.24 | 0.8.3 |
+
+> Alpine version is informational — the real lock is the pinned base-image digest in
+> [`manifest.json`](./manifest.json). Bare `<major>-alpine` tracks the latest Alpine; an
+> Alpine rebase changes the digest, which triggers an automatic bump.
 
 `ghcr.io/jonathanmcohen/pgvector:latest` aliases the current stable major (**17** today; bumps to 18 ~30 days after upstream PG 18 GA).
 
