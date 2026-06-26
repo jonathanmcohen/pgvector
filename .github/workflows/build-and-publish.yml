@@ -205,7 +205,10 @@ jobs:
         env:
           COSIGN_YES: "true"
         run: |
-          cosign sign --recursive "${IMAGE}@${{ steps.manifest.outputs.digest }}"
+          # Sign the multi-arch index only (NOT --recursive): verifying the index
+          # signature is sufficient and avoids a separate .sig per arch child,
+          # which otherwise triples the artifact count on the package page.
+          cosign sign "${IMAGE}@${{ steps.manifest.outputs.digest }}"
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
