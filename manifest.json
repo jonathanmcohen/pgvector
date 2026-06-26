@@ -1,5 +1,10 @@
 {
-  "pg_majors": [15, 16, 17, 18],
+  "pg_majors": [
+    15,
+    16,
+    17,
+    18
+  ],
   "pgvector": "0.8.3",
   "alpine_digests": {
     "15": "sha256:cd17e2ac98240fce1541ad2a803b34009b4eea5aec8a832363cdc7eca62e722e",
@@ -13,6 +18,6 @@
     "17": "3.24",
     "18": "3.24"
   },
-  "last_checked_utc": "2026-06-26T22:56:23Z",
+  "last_checked_utc": "2026-06-26T23:32:47Z",
   "latest_alias_target": 17
 }

@@ -234,3 +234,81 @@ jobs:
             echo "- pgvector: \`${{ needs.prepare.outputs.pgvector }}\`"
             docker buildx imagetools inspect "${IMAGE}:${{ matrix.major }}-${{ needs.prepare.outputs.pgvector }}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Auto-release: once all majors are published, cut a dated git tag + GitHub
+  # Release recording this version. Runs only on main, only when the triggering
+  # commit changed manifest.json (i.e. an actual version bump — not doc pushes),
+  # and is idempotent (a same-day re-bump gets a .N suffix). This is what makes
+  # the pipeline self-tagging end to end: a bump merge publishes AND releases.
+  # ---------------------------------------------------------------------------
+  release:
+    needs: [prepare, merge]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # push the tag + create the Release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # full history for the changelog
+
+      - name: Tag + GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PGVECTOR: ${{ needs.prepare.outputs.pgvector }}
+        run: |
+          set -euo pipefail
+
+          # Only release on an actual version change. A bump merge touches
+          # manifest.json; doc-only pushes and re-dispatches do not.
+          if git rev-parse -q --verify HEAD~1 >/dev/null 2>&1; then
+            if ! git diff --name-only HEAD~1 HEAD | grep -qx 'manifest.json'; then
+              echo "manifest.json unchanged in this commit — no release"
+              exit 0
+            fi
+          fi
+
+          DATE="$(date -u +%Y.%m.%d)"
+          BASE="${DATE}-pgvector${PGVECTOR}"
+          TAG="$BASE"
+          n=1
+          # Idempotent + collision-safe: reached only on a real bump, so a
+          # second same-day bump (e.g. alpine-only) gets BASE.1, BASE.2, ...
+          while git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null 2>&1 \
+                || gh release view "$TAG" >/dev/null 2>&1; do
+            TAG="${BASE}.${n}"; n=$((n+1))
+          done
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "pgvector ${PGVECTOR}"
+          git push origin "$TAG"
+
+          # Changelog since the previous release tag (if any).
+          PREV="$(git tag --list '*-pgvector*' --sort=-creatordate | grep -vx "$TAG" | head -1 || true)"
+
+          {
+            echo "Automated release — pgvector **${PGVECTOR}** on Postgres $(jq -r '.pg_majors | join(", ")' manifest.json) (Alpine)."
+            echo
+            echo "### Images"
+            for m in $(jq -r '.pg_majors[]' manifest.json); do
+              echo "- \`${IMAGE}:${m}-${PGVECTOR}\` (also \`:${m}\` moving)"
+            done
+            echo
+            echo "### Changes"
+            if [ -n "$PREV" ]; then
+              git log --no-merges --pretty='- %s (%h)' "${PREV}..HEAD" | head -50
+            else
+              git log --no-merges --pretty='- %s (%h)' | head -50
+            fi
+            echo
+            echo "### manifest.json"
+            echo '```json'
+            cat manifest.json
+            echo '```'
+          } > notes.md
+
+          gh release create "$TAG" --title "$TAG" --notes-file notes.md
+          echo "released ${TAG}"
+          echo "### Released \`${TAG}\`" >> "$GITHUB_STEP_SUMMARY"
