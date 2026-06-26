@@ -1,0 +1,50 @@
+# =============================================================================
+# Dockerfile.template
+# -----------------------------------------------------------------------------
+# Source of truth for the generated variants/{15,16,17,18}/Dockerfile files.
+# DO NOT build this file directly. Run scripts/render-dockerfiles.sh, which
+# reads manifest.json and substitutes the __TOKENS__ below to produce one
+# fully-pinned Dockerfile per Postgres major.
+#
+# Tokens substituted by render-dockerfiles.sh:
+#   __PG_MAJOR__         e.g. 18
+#   __ALPINE_DIGEST__    e.g. sha256:1b16...  (multi-arch index digest, pinned)
+#   __PGVECTOR_VERSION__ e.g. 0.8.3
+# =============================================================================
+
+# Base pinned by digest (Plan E1): a Docker Hub mutation cannot swap the base
+# out from under us between the upstream check and the build.
+FROM postgres:__PG_MAJOR__-alpine@__ALPINE_DIGEST__
+
+# Overridable at build time: `--build-arg PGVECTOR_VERSION=x.y.z`. Defaults to
+# the value baked in by render-dockerfiles.sh from manifest.json.
+ARG PGVECTOR_VERSION=__PGVECTOR_VERSION__
+
+LABEL org.opencontainers.image.source="https://github.com/jonathanmcohen/pgvector"
+LABEL org.opencontainers.image.title="postgres-__PG_MAJOR__-pgvector"
+LABEL org.opencontainers.image.description="Postgres __PG_MAJOR__ alpine with pgvector ${PGVECTOR_VERSION}"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL com.jonco.pgvector.version="${PGVECTOR_VERSION}"
+LABEL com.jonco.postgres.major="__PG_MAJOR__"
+
+# Build pgvector from source against this exact Postgres.
+#
+# Build deps are intentionally version-agnostic: `clang` + `llvm-dev` resolve to
+# the toolchain shipped in the SAME Alpine release the postgres base was built
+# against, so the LLVM bitcode pgvector emits for JIT inlining matches the
+# server's llvmjit. Pinning clang15/llvm15 (as in older recipes) breaks on
+# current Alpine. All build deps are dropped afterward to keep the image lean.
+RUN set -eux; \
+    apk add --no-cache --virtual .build-deps \
+        build-base \
+        clang \
+        llvm-dev \
+        git; \
+    git clone --depth 1 --branch "v${PGVECTOR_VERSION}" \
+        https://github.com/pgvector/pgvector.git /tmp/pgvector; \
+    cd /tmp/pgvector; \
+    make OPTFLAGS=""; \
+    make install; \
+    cd /; \
+    rm -rf /tmp/pgvector; \
+    apk del .build-deps

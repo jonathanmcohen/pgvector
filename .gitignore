@@ -1,0 +1,6 @@
+# Build / scan artifacts produced by CI (never committed)
+sbom.spdx.json
+*.sig
+*.pem
+trivy-results.*
+.DS_Store
