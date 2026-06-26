@@ -52,12 +52,21 @@ SELECT id, embedding <-> '[3,1,2]' AS dist FROM items ORDER BY dist LIMIT 5;
 
 ### docker compose
 
-See [`examples/docker-compose.yml`](./examples/docker-compose.yml):
+Single major — [`examples/docker-compose.yml`](./examples/docker-compose.yml):
 
 ```bash
 docker compose -f examples/docker-compose.yml up -d
 docker compose -f examples/docker-compose.yml exec db \
   psql -U postgres -d app -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+All four majors side by side (ports `5415`–`5418`) —
+[`examples/docker-compose.all-majors.yml`](./examples/docker-compose.all-majors.yml):
+
+```bash
+docker compose -f examples/docker-compose.all-majors.yml up -d
+# psql straight in on the matching host port:
+psql -h localhost -p 5418 -U postgres -d app -c "CREATE EXTENSION IF NOT EXISTS vector;"  # PG 18
 ```
 
 ## Pinning recommendation

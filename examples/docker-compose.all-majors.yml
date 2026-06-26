@@ -1,0 +1,83 @@
+# All four Postgres majors side by side, each fully pinned (production style).
+# Distinct host ports + named volumes so they coexist on one host.
+#
+#   docker compose -f examples/docker-compose.all-majors.yml up -d
+#   # then, per service, enable the extension once:
+#   docker compose -f examples/docker-compose.all-majors.yml exec pg17 \
+#     psql -U postgres -d app -c "CREATE EXTENSION IF NOT EXISTS vector;"
+#
+# Host port convention: 54<major> -> container 5432.
+services:
+  pg15:
+    image: ghcr.io/jonathanmcohen/pgvector:15-0.8.3
+    container_name: pgvector15
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: app
+    ports:
+      - "5415:5432"
+    volumes:
+      - pg15data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pg16:
+    image: ghcr.io/jonathanmcohen/pgvector:16-0.8.3
+    container_name: pgvector16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: app
+    ports:
+      - "5416:5432"
+    volumes:
+      - pg16data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pg17:
+    image: ghcr.io/jonathanmcohen/pgvector:17-0.8.3
+    container_name: pgvector17
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: app
+    ports:
+      - "5417:5432"
+    volumes:
+      - pg17data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pg18:
+    image: ghcr.io/jonathanmcohen/pgvector:18-0.8.3
+    container_name: pgvector18
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: app
+    ports:
+      - "5418:5432"
+    volumes:
+      - pg18data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg15data:
+  pg16data:
+  pg17data:
+  pg18data:
