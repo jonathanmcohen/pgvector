@@ -1,0 +1,234 @@
+name: build-and-publish
+
+# Build the postgres+pgvector images for every PG major, multi-arch, and publish
+# to GHCR. Flow per major:
+#   build (native amd64 + native arm64, in parallel)
+#     -> load image locally -> smoke-test -> push BY DIGEST (no tag yet)
+#   merge: assemble the multi-arch manifest list and apply the real tags,
+#          then cosign-sign + SBOM-attest the final image.
+# Nothing receives a pullable tag unless BOTH arches pass smoke. No smoke = no push.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write       # push to GHCR
+  id-token: write       # cosign keyless (Sigstore OIDC)
+  attestations: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}   # ghcr.io/jonathanmcohen/pgvector (lowercase)
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Resolve the version facts once: pgvector version + which major owns :latest
+  # (from manifest.json), and the current PG patch per major (from Docker Hub).
+  # ---------------------------------------------------------------------------
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      majors: ${{ steps.facts.outputs.majors }}
+      pgvector: ${{ steps.facts.outputs.pgvector }}
+      latest_target: ${{ steps.facts.outputs.latest_target }}
+      patches: ${{ steps.facts.outputs.patches }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: facts
+        run: |
+          set -euo pipefail
+          majors="$(jq -c '.pg_majors' manifest.json)"
+          pgvector="$(jq -r '.pgvector' manifest.json)"
+          latest_target="$(jq -r '.latest_alias_target' manifest.json)"
+          # Resolve the newest patch the bare <major> tag points at.
+          patches='{}'
+          for m in $(jq -r '.pg_majors[]' manifest.json); do
+            p="$(curl -fsSL "https://hub.docker.com/v2/repositories/library/postgres/tags?page_size=100&name=${m}." \
+              | jq -r '.results[].name' | grep -E "^${m}\.[0-9]+$" | sort -t. -k2,2n | tail -1)"
+            [ -n "$p" ] || { echo "could not resolve patch for PG ${m}" >&2; exit 1; }
+            patches="$(jq -c --arg m "$m" --arg p "$p" '.[$m]=$p' <<<"$patches")"
+          done
+          {
+            echo "majors=${majors}"
+            echo "pgvector=${pgvector}"
+            echo "latest_target=${latest_target}"
+            echo "patches=${patches}"
+          } >> "$GITHUB_OUTPUT"
+          echo "pgvector=${pgvector} latest=${latest_target} patches=${patches}"
+
+  # ---------------------------------------------------------------------------
+  # Build + smoke each (major x arch) on a NATIVE runner (no qemu), then push the
+  # arch image by digest. The digest is uploaded for the merge job to assemble.
+  # ---------------------------------------------------------------------------
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        major: ${{ fromJSON(needs.prepare.outputs.majors) }}
+        arch:
+          - { runner: ubuntu-latest,     platform: linux/amd64, suffix: amd64 }
+          - { runner: ubuntu-24.04-arm,  platform: linux/arm64, suffix: arm64 }
+    runs-on: ${{ matrix.arch.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 1) Build for THIS arch and load into the local docker so we can run it.
+      - name: Build (load, single-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: variants/${{ matrix.major }}/Dockerfile
+          platforms: ${{ matrix.arch.platform }}
+          build-args: |
+            PGVECTOR_VERSION=${{ needs.prepare.outputs.pgvector }}
+          load: true
+          tags: pgvector-build:${{ matrix.major }}-${{ matrix.arch.suffix }}
+          cache-from: type=gha,scope=${{ matrix.major }}-${{ matrix.arch.suffix }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.major }}-${{ matrix.arch.suffix }}
+
+      # 2) Smoke-test the just-built image. Failure aborts -> no push, no tag.
+      - name: Smoke test
+        run: |
+          chmod +x scripts/smoke-test.sh
+          ./scripts/smoke-test.sh pgvector-build:${{ matrix.major }}-${{ matrix.arch.suffix }}
+
+      # 3) Re-export the same build, this time pushed BY DIGEST (cache hit).
+      - name: Push by digest
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: variants/${{ matrix.major }}/Dockerfile
+          platforms: ${{ matrix.arch.platform }}
+          build-args: |
+            PGVECTOR_VERSION=${{ needs.prepare.outputs.pgvector }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.major }}-${{ matrix.arch.suffix }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.major }}-${{ matrix.arch.suffix }}
+
+      - name: Record digest
+        run: |
+          mkdir -p digests
+          echo "${{ steps.push.outputs.digest }}" > "digests/${{ matrix.major }}-${{ matrix.arch.suffix }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.major }}-${{ matrix.arch.suffix }}
+          path: digests/${{ matrix.major }}-${{ matrix.arch.suffix }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Assemble the multi-arch manifest list per major, apply all tags, sign + SBOM.
+  # ---------------------------------------------------------------------------
+  merge:
+    needs: [prepare, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        major: ${{ fromJSON(needs.prepare.outputs.majors) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-${{ matrix.major }}-*
+          path: digests
+          merge-multiple: true
+
+      - name: Create manifest list with tags
+        id: manifest
+        env:
+          PATCHES: ${{ needs.prepare.outputs.patches }}
+        run: |
+          set -euo pipefail
+          PGVECTOR='${{ needs.prepare.outputs.pgvector }}'
+          LATEST_TARGET='${{ needs.prepare.outputs.latest_target }}'
+          MAJOR='${{ matrix.major }}'
+          # Resolve via jq (GH expression numeric-index into a string-keyed map is unreliable).
+          PATCH="$(jq -r --arg m "$MAJOR" '.[$m]' <<<"$PATCHES")"
+          [ -n "$PATCH" ] && [ "$PATCH" != "null" ] || { echo "no patch for PG $MAJOR" >&2; exit 1; }
+
+          # Tag set (per spec): moving, pinned, fully-pinned, + latest alias.
+          tags=(
+            "${IMAGE}:${MAJOR}"
+            "${IMAGE}:${MAJOR}-${PGVECTOR}"
+            "${IMAGE}:${PATCH}-${PGVECTOR}"
+          )
+          if [ "${MAJOR}" = "${LATEST_TARGET}" ]; then
+            tags+=("${IMAGE}:latest")
+          fi
+
+          # Per-arch digest refs collected from the build job.
+          refs=()
+          for f in digests/*; do
+            d="$(cat "$f")"
+            refs+=("${IMAGE}@${d}")
+          done
+          [ "${#refs[@]}" -ge 2 ] || { echo "expected >=2 arch digests, got ${#refs[@]}" >&2; exit 1; }
+
+          targs=()
+          for t in "${tags[@]}"; do targs+=("-t" "$t"); done
+          echo "creating: ${tags[*]}"
+          docker buildx imagetools create "${targs[@]}" "${refs[@]}"
+
+          # Resolve the final multi-arch manifest digest for signing/attestation.
+          digest="$(docker buildx imagetools inspect "${IMAGE}:${MAJOR}-${PGVECTOR}" --format '{{.Manifest.Digest}}')"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "primary=${IMAGE}:${MAJOR}-${PGVECTOR}" >> "$GITHUB_OUTPUT"
+          echo "published ${IMAGE}:${MAJOR}-${PGVECTOR} @ ${digest}"
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Cosign sign (keyless)
+        env:
+          COSIGN_YES: "true"
+        run: |
+          cosign sign --recursive "${IMAGE}@${{ steps.manifest.outputs.digest }}"
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.manifest.outputs.primary }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Attest SBOM
+        env:
+          COSIGN_YES: "true"
+        run: |
+          cosign attest --recursive \
+            --predicate sbom.spdx.json \
+            --type spdxjson \
+            "${IMAGE}@${{ steps.manifest.outputs.digest }}"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Published PG ${{ matrix.major }}"
+            echo ""
+            echo "- digest: \`${{ steps.manifest.outputs.digest }}\`"
+            echo "- pgvector: \`${{ needs.prepare.outputs.pgvector }}\`"
+            docker buildx imagetools inspect "${IMAGE}:${{ matrix.major }}-${{ needs.prepare.outputs.pgvector }}"
+          } >> "$GITHUB_STEP_SUMMARY"
