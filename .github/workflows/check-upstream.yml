@@ -1,0 +1,121 @@
+name: check-upstream
+
+# Daily upstream watcher (Plan C). Resolves the latest pgvector tag + current
+# postgres:<major>-alpine digests; on drift it bumps manifest.json, re-renders
+# the variant Dockerfiles, validates the new images (build + smoke, amd64),
+# opens an auditable PR, squash-merges it, and dispatches build-and-publish to
+# do the full multi-arch publish. A failure opens an Issue tagging the maintainer.
+#
+# Design note: GITHUB_TOKEN-created PRs/merges do NOT trigger other workflows
+# (GitHub's recursion guard), so we validate inline and dispatch the publish
+# explicitly via `gh workflow run` rather than relying on push/PR events. This
+# keeps everything on GITHUB_TOKEN — no PAT required.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # daily 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write          # dispatch build-and-publish
+
+env:
+  IMAGE_LOCAL: pgvector-upstream-check
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect upstream drift
+        id: drift
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          out="$(./scripts/check-upstream.sh)"
+          code=$?
+          set -e
+          echo "$out"
+          {
+            echo "summary<<__EOF__"
+            echo "$out"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+          case "$code" in
+            0)  echo "drift=false" >> "$GITHUB_OUTPUT"; echo "no drift" ;;
+            10) echo "drift=true"  >> "$GITHUB_OUTPUT"; echo "drift detected" ;;
+            *)  echo "check-upstream.sh errored ($code)" >&2; exit "$code" ;;
+          esac
+
+      # Gate: build + smoke every major (amd64) BEFORE proposing a merge, so a
+      # broken bump never lands on main. Multi-arch publish happens post-merge.
+      - name: Validate bumped images (build + smoke, amd64)
+        if: steps.drift.outputs.drift == 'true'
+        run: |
+          set -euo pipefail
+          chmod +x scripts/smoke-test.sh
+          PGVECTOR="$(jq -r '.pgvector' manifest.json)"
+          for m in $(jq -r '.pg_majors[]' manifest.json); do
+            echo "::group::PG ${m} — build + smoke (pgvector ${PGVECTOR})"
+            docker build -f "variants/${m}/Dockerfile" \
+              --build-arg PGVECTOR_VERSION="${PGVECTOR}" \
+              -t "${IMAGE_LOCAL}:${m}" .
+            ./scripts/smoke-test.sh "${IMAGE_LOCAL}:${m}"
+            echo "::endgroup::"
+          done
+
+      - name: Open bump PR
+        if: steps.drift.outputs.drift == 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/upstream-bump
+          delete-branch: true
+          add-paths: |
+            manifest.json
+            variants/**
+          commit-message: "chore: bump postgres/pgvector"
+          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          title: "chore: bump postgres/pgvector"
+          body: |
+            Automated upstream bump.
+
+            ${{ steps.drift.outputs.summary }}
+
+            All majors built + smoke-tested (amd64) before this PR was opened.
+            Merging dispatches the multi-arch `build-and-publish` workflow.
+          labels: |
+            automated
+            upstream-bump
+
+      - name: Squash-merge and publish
+        if: steps.drift.outputs.drift == 'true' && steps.cpr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ steps.cpr.outputs.pull-request-number }}
+        run: |
+          set -euo pipefail
+          # Prefer native auto-merge (if branch protection/auto-merge is enabled);
+          # fall back to a direct squash merge (images already validated above).
+          gh pr merge "$PR" --squash --auto || gh pr merge "$PR" --squash
+          # GITHUB_TOKEN merges don't trigger push workflows — dispatch explicitly.
+          gh workflow run build-and-publish.yml --ref main
+
+      - name: Open issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Upstream bump failed — run ${{ github.run_id }}" \
+            --label automated \
+            --body "The \`check-upstream\` workflow failed (drift detection, image validation, or merge). Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          cc @jonathanmcohen" || true
