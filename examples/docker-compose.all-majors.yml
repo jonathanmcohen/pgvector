@@ -69,7 +69,9 @@ services:
     ports:
       - "5418:5432"
     volumes:
-      - pg18data:/var/lib/postgresql/data
+      # PG 18's image moved PGDATA to /var/lib/postgresql/18/docker and declares
+      # its VOLUME at /var/lib/postgresql — mount the parent, NOT .../data.
+      - pg18data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
       interval: 10s

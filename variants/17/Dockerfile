@@ -15,17 +15,16 @@ LABEL com.jonco.postgres.major="17"
 
 # Build pgvector from source against this exact Postgres.
 #
-# Build deps are intentionally version-agnostic: `clang` + `llvm-dev` resolve to
-# the toolchain shipped in the SAME Alpine release the postgres base was built
-# against, so the LLVM bitcode pgvector emits for JIT inlining matches the
-# server's llvmjit. Pinning clang15/llvm15 (as in older recipes) breaks on
-# current Alpine. All build deps are dropped afterward to keep the image lean.
+# JIT toolchain: the postgres image exports DOCKER_PG_LLVM_DEPS (e.g.
+# "llvm21-dev clang21") naming the EXACT clang/llvm it was compiled with, so the
+# bitcode pgvector emits for JIT inlining matches the server's llvmjit. Using it
+# (instead of a generic `clang`/`llvm-dev`, which can resolve to a different
+# major) guarantees the match across Alpine bumps. Build deps are dropped after.
 RUN set -eux; \
     apk add --no-cache --virtual .build-deps \
         build-base \
-        clang \
-        llvm-dev \
-        git; \
+        git \
+        ${DOCKER_PG_LLVM_DEPS}; \
     git clone --depth 1 --branch "v${PGVECTOR_VERSION}" \
         https://github.com/pgvector/pgvector.git /tmp/pgvector; \
     cd /tmp/pgvector; \

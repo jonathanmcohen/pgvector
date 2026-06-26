@@ -1,6 +1,10 @@
 # Minimal consumer example. Swap the `:17` tag for `:15`, `:16`, or `:18` to
 # pick a Postgres major — or pin fully (e.g. `:17-0.8.3`) for production.
 #
+# NOTE: if you switch to `:18`, change the volume mount below to
+# `pgdata:/var/lib/postgresql` — PG 18's image relocated PGDATA to
+# /var/lib/postgresql/18/docker (15/16/17 keep .../data).
+#
 #   docker compose up -d
 #   docker compose exec db psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS vector;"
 services:
