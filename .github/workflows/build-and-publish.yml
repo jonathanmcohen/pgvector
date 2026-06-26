@@ -218,7 +218,9 @@ jobs:
         env:
           COSIGN_YES: "true"
         run: |
-          cosign attest --recursive \
+          # NB: cosign attest has no --recursive flag (only cosign sign does);
+          # the predicate attaches to the manifest-list digest.
+          cosign attest \
             --predicate sbom.spdx.json \
             --type spdxjson \
             "${IMAGE}@${{ steps.manifest.outputs.digest }}"
