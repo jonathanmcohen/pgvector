@@ -12,6 +12,14 @@ on:
   push:
     branches: [main]
     tags: ['v*.*.*.*']
+    # Doc/example-only changes must not trigger a republish (which mints new
+    # digests and re-clutters the package). Builds fire on manifest/Dockerfile/
+    # script/workflow changes — i.e. anything that affects the actual images.
+    paths-ignore:
+      - '**.md'
+      - 'examples/**'
+      - 'LICENSE'
+      - '.github/dependabot.yml'
   workflow_dispatch:
 
 permissions:
@@ -103,6 +111,31 @@ jobs:
         run: |
           chmod +x scripts/smoke-test.sh
           ./scripts/smoke-test.sh pgvector-build:${{ matrix.major }}-${{ matrix.arch.suffix }}
+
+      # 2b) Trivy CVE gate (E2): fail on fixable HIGH/CRITICAL in the OS (apk)
+      #     packages — the surface we control (a new base digest fixes them, and
+      #     check-upstream picks that up). Go-stdlib CVEs in the base image's
+      #     gosu binary are NOT gated: we can't rebuild gosu (the postgres image
+      #     owns its Go version), so blocking on them would wedge every publish.
+      #     They're surfaced by the informational report below instead.
+      - name: Trivy gate (fail on fixable OS HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: pgvector-build:${{ matrix.major }}-${{ matrix.arch.suffix }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          vuln-type: os
+          exit-code: '1'
+          format: table
+
+      - name: Trivy full report (informational, non-blocking)
+        if: always()
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: pgvector-build:${{ matrix.major }}-${{ matrix.arch.suffix }}
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+          format: table
 
       # 3) Re-export the same build, this time pushed BY DIGEST (cache hit).
       - name: Push by digest
@@ -288,8 +321,20 @@ jobs:
           git tag -a "$TAG" -m "pgvector ${PGVECTOR}"
           git push origin "$TAG"
 
-          # Changelog since the previous release tag (if any).
+          # Changelog since the previous release tag (if any), grouped by
+          # conventional-commit type (release-drafter-style, E6).
           PREV="$(git tag --list '*-pgvector*' --sort=-creatordate | grep -vx "$TAG" | head -1 || true)"
+          RANGE=""
+          [ -n "$PREV" ] && RANGE="${PREV}..HEAD"
+          log_subjects() {
+            if [ -n "$RANGE" ]; then git log --no-merges --pretty='%s|%h' "$RANGE"
+            else git log --no-merges --pretty='%s|%h'; fi
+          }
+          section() { # $1=heading  $2=grep-extended-regex
+            local body
+            body="$(log_subjects | grep -iE "$2" | sed -E 's/^([^|]*)\|(.*)$/- \1 (\2)/' | head -30 || true)"
+            [ -n "$body" ] && { echo "#### $1"; echo "$body"; echo; }
+          }
 
           {
             echo "Automated release — pgvector **${PGVECTOR}** on Postgres $(jq -r '.pg_majors | join(", ")' manifest.json) (Alpine)."
@@ -300,12 +345,15 @@ jobs:
             done
             echo
             echo "### Changes"
-            if [ -n "$PREV" ]; then
-              git log --no-merges --pretty='- %s (%h)' "${PREV}..HEAD" | head -50
-            else
-              git log --no-merges --pretty='- %s (%h)' | head -50
-            fi
-            echo
+            section "⬆️ Upstream bumps" '^chore(\(.*\))?: bump'
+            section "✨ Features"        '^feat(\(.*\))?:'
+            section "🐛 Fixes"           '^fix(\(.*\))?:'
+            section "🔧 CI / build"      '^ci(\(.*\))?:'
+            section "📝 Docs"            '^docs(\(.*\))?:'
+            # Anything not matching a known prefix.
+            other="$(log_subjects | grep -ivE '^(chore(\(.*\))?: bump|feat|fix|ci|docs)(\(.*\))?:' \
+                     | sed -E 's/^([^|]*)\|(.*)$/- \1 (\2)/' | head -30 || true)"
+            [ -n "$other" ] && { echo "#### Other"; echo "$other"; echo; }
             echo "### manifest.json"
             echo '```json'
             cat manifest.json

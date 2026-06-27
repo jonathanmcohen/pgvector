@@ -1,9 +1,12 @@
 # pgvector on Alpine
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![build-and-publish](https://github.com/jonathanmcohen/pgvector/actions/workflows/build-and-publish.yml/badge.svg)](https://github.com/jonathanmcohen/pgvector/actions/workflows/build-and-publish.yml)
 [![check-upstream](https://github.com/jonathanmcohen/pgvector/actions/workflows/check-upstream.yml/badge.svg)](https://github.com/jonathanmcohen/pgvector/actions/workflows/check-upstream.yml)
+[![pgvector](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathanmcohen%2Fpgvector%2Fmain%2Fmanifest.json&query=%24.pgvector&label=pgvector&color=blue)](https://github.com/pgvector/pgvector/releases)
+[![last upstream check](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjonathanmcohen%2Fpgvector%2Fmain%2Fmanifest.json&query=%24.last_checked_utc&label=last%20checked)](https://github.com/jonathanmcohen/pgvector/actions/workflows/check-upstream.yml)
+[![latest release](https://img.shields.io/github/v/release/jonathanmcohen/pgvector?label=release&sort=date)](https://github.com/jonathanmcohen/pgvector/releases/latest)
 [![GHCR](https://img.shields.io/badge/ghcr.io-jonathanmcohen%2Fpgvector-blue?logo=docker)](https://github.com/jonathanmcohen/pgvector/pkgs/container/pgvector)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
 **Postgres on Alpine with [pgvector](https://github.com/pgvector/pgvector) pre-installed. Auto-updated daily from upstream.**
 
