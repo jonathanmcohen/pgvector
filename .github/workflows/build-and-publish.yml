@@ -316,10 +316,10 @@ jobs:
             TAG="${BASE}.${n}"; n=$((n+1))
           done
 
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "pgvector ${PGVECTOR}"
-          git push origin "$TAG"
+          # NB: don't pre-push the tag then `gh release create` it — there's a
+          # race where GitHub hasn't indexed the fresh tag yet and creation
+          # fails transiently. Let gh create the tag at this commit atomically
+          # (see `--target` below), so there's exactly one operation.
 
           # Changelog since the previous release tag (if any), grouped by
           # conventional-commit type (release-drafter-style, E6).
@@ -360,6 +360,6 @@ jobs:
             echo '```'
           } > notes.md
 
-          gh release create "$TAG" --title "$TAG" --notes-file notes.md
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file notes.md
           echo "released ${TAG}"
           echo "### Released \`${TAG}\`" >> "$GITHUB_STEP_SUMMARY"
