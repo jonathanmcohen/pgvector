@@ -119,7 +119,7 @@ jobs:
       #     owns its Go version), so blocking on them would wedge every publish.
       #     They're surfaced by the informational report below instead.
       - name: Trivy gate (fail on fixable OS HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: pgvector-build:${{ matrix.major }}-${{ matrix.arch.suffix }}
           severity: HIGH,CRITICAL
@@ -130,7 +130,7 @@ jobs:
 
       - name: Trivy full report (informational, non-blocking)
         if: always()
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: pgvector-build:${{ matrix.major }}-${{ matrix.arch.suffix }}
           severity: HIGH,CRITICAL
