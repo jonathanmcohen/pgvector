@@ -44,7 +44,7 @@ jobs:
       latest_target: ${{ steps.facts.outputs.latest_target }}
       patches: ${{ steps.facts.outputs.patches }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: facts
         run: |
           set -euo pipefail
@@ -82,7 +82,7 @@ jobs:
           - { runner: ubuntu-24.04-arm,  platform: linux/arm64, suffix: arm64 }
     runs-on: ${{ matrix.arch.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 
@@ -174,7 +174,7 @@ jobs:
         major: ${{ fromJSON(needs.prepare.outputs.majors) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 
@@ -285,7 +285,7 @@ jobs:
     permissions:
       contents: write       # push the tag + create the Release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0     # full history for the changelog
 
