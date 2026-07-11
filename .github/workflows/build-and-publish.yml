@@ -333,7 +333,11 @@ jobs:
           section() { # $1=heading  $2=grep-extended-regex
             local body
             body="$(log_subjects | grep -iE "$2" | sed -E 's/^([^|]*)\|(.*)$/- \1 (\2)/' | head -30 || true)"
-            [ -n "$body" ] && { echo "#### $1"; echo "$body"; echo; }
+            # NB: must be if/fi, not `[ -n ] && {}` — the && form returns 1 on
+            # an empty section and set -e silently kills the whole script.
+            if [ -n "$body" ]; then
+              echo "#### $1"; echo "$body"; echo
+            fi
           }
 
           {
@@ -351,9 +355,11 @@ jobs:
             section "🔧 CI / build"      '^ci(\(.*\))?:'
             section "📝 Docs"            '^docs(\(.*\))?:'
             # Anything not matching a known prefix.
-            other="$(log_subjects | grep -ivE '^(chore(\(.*\))?: bump|feat|fix|ci|docs)(\(.*\))?:' \
+            other="$(log_subjects | grep -ivE '^((feat|fix|ci|docs)(\(.*\))?:|chore(\(.*\))?: bump)' \
                      | sed -E 's/^([^|]*)\|(.*)$/- \1 (\2)/' | head -30 || true)"
-            [ -n "$other" ] && { echo "#### Other"; echo "$other"; echo; }
+            if [ -n "$other" ]; then
+              echo "#### Other"; echo "$other"; echo
+            fi
             echo "### manifest.json"
             echo '```json'
             cat manifest.json
