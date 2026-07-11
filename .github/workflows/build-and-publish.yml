@@ -156,7 +156,7 @@ jobs:
           mkdir -p digests
           echo "${{ steps.push.outputs.digest }}" > "digests/${{ matrix.major }}-${{ matrix.arch.suffix }}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: digest-${{ matrix.major }}-${{ matrix.arch.suffix }}
           path: digests/${{ matrix.major }}-${{ matrix.arch.suffix }}
