@@ -363,3 +363,35 @@ jobs:
           gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file notes.md
           echo "released ${TAG}"
           echo "### Released \`${TAG}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Failure notification: this workflow mostly runs unattended (dispatched by
+  # the nightly check-upstream), so a red run must page a human. Without this,
+  # gate failures went unnoticed for days. Skips if an identical open issue
+  # already exists (a stuck upstream CVE fails nightly until fixed).
+  # ---------------------------------------------------------------------------
+  notify-failure:
+    needs: [prepare, build, merge, release]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open issue (dedup by title)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          title="build-and-publish failed on ${GITHUB_REF_NAME}"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "in:title \"$title\"" --json number --jq 'length')"
+          if [ "$existing" -gt 0 ]; then
+            echo "open failure issue already exists — not duplicating"
+            exit 0
+          fi
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "$title" \
+            --label automated \
+            --body "A build-and-publish run failed (build, smoke, Trivy gate, merge, or release). Logs: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+          cc @jonathanmcohen"

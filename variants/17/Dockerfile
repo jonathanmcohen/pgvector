@@ -21,6 +21,10 @@ LABEL com.jonco.postgres.major="17"
 # (instead of a generic `clang`/`llvm-dev`, which can resolve to a different
 # major) guarantees the match across Alpine bumps. Build deps are dropped after.
 RUN set -eux; \
+    # Pull current Alpine security patches first: the pinned base can lag the
+    # repo (e.g. c-ares CVE-2026-33630 fixed in 1.34.8-r0 while the base still
+    # shipped 1.34.6-r0), and the Trivy gate blocks publishing fixable CVEs.
+    apk upgrade --no-cache; \
     apk add --no-cache --virtual .build-deps \
         build-base \
         git \
