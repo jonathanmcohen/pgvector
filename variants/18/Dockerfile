@@ -4,7 +4,7 @@ FROM postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148
 
 # Overridable at build time: `--build-arg PGVECTOR_VERSION=x.y.z`. Defaults to
 # the value baked in by render-dockerfiles.sh from manifest.json.
-ARG PGVECTOR_VERSION=0.8.5
+ARG PGVECTOR_VERSION=0.8.6
 
 LABEL org.opencontainers.image.source="https://github.com/jonathanmcohen/pgvector"
 LABEL org.opencontainers.image.title="postgres-18-pgvector"
