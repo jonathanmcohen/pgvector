@@ -94,7 +94,7 @@ jobs:
 
       # 1) Build for THIS arch and load into the local docker so we can run it.
       - name: Build (load, single-arch)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: variants/${{ matrix.major }}/Dockerfile
@@ -140,7 +140,7 @@ jobs:
       # 3) Re-export the same build, this time pushed BY DIGEST (cache hit).
       - name: Push by digest
         id: push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: variants/${{ matrix.major }}/Dockerfile
