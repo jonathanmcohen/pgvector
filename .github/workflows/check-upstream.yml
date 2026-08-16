@@ -9,7 +9,7 @@ name: check-upstream
 # Design note: GITHUB_TOKEN-created PRs/merges do NOT trigger other workflows
 # (GitHub's recursion guard), so we validate inline and dispatch the publish
 # explicitly via `gh workflow run` rather than relying on push/PR events. This
-# keeps everything on GITHUB_TOKEN — no PAT required.
+# keeps everything on GITHUB_TOKEN - no PAT required.
 
 on:
   schedule:
@@ -61,7 +61,7 @@ jobs:
           chmod +x scripts/smoke-test.sh
           PGVECTOR="$(jq -r '.pgvector' manifest.json)"
           for m in $(jq -r '.pg_majors[]' manifest.json); do
-            echo "::group::PG ${m} — build + smoke (pgvector ${PGVECTOR})"
+            echo "::group::PG ${m} - build + smoke (pgvector ${PGVECTOR})"
             docker build -f "variants/${m}/Dockerfile" \
               --build-arg PGVECTOR_VERSION="${PGVECTOR}" \
               -t "${IMAGE_LOCAL}:${m}" .
@@ -105,7 +105,7 @@ jobs:
           # Prefer native auto-merge (if branch protection/auto-merge is enabled);
           # fall back to a direct squash merge (images already validated above).
           gh pr merge "$PR" --squash --auto || gh pr merge "$PR" --squash
-          # GITHUB_TOKEN merges don't trigger push workflows — dispatch explicitly.
+          # GITHUB_TOKEN merges don't trigger push workflows - dispatch explicitly.
           gh workflow run build-and-publish.yml --ref main
 
       - name: Open issue on failure
@@ -114,7 +114,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue create \
-            --title "Upstream bump failed — run ${{ github.run_id }}" \
+            --title "Upstream bump failed - run ${{ github.run_id }}" \
             --label automated \
             --body "The \`check-upstream\` workflow failed (drift detection, image validation, or merge). Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 

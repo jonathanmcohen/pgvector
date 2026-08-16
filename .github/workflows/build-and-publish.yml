@@ -11,10 +11,14 @@ name: build-and-publish
 on:
   push:
     branches: [main]
-    tags: ['v*.*.*.*']
+    # No `tags:` filter. There used to be `tags: ['v*.*.*.*']`, which never
+    # matched anything: the release job below creates tags shaped like
+    # 2026.08.16-pgvector0.8.6, with no leading v, and four dot-separated
+    # components is not semver in any case. A filter that has never fired reads
+    # like coverage and is not.
     # Doc/example-only changes must not trigger a republish (which mints new
     # digests and re-clutters the package). Builds fire on manifest/Dockerfile/
-    # script/workflow changes — i.e. anything that affects the actual images.
+    # script/workflow changes - i.e. anything that affects the actual images.
     paths-ignore:
       - '**.md'
       - 'examples/**'
@@ -113,7 +117,7 @@ jobs:
           ./scripts/smoke-test.sh pgvector-build:${{ matrix.major }}-${{ matrix.arch.suffix }}
 
       # 2b) Trivy CVE gate (E2): fail on fixable HIGH/CRITICAL in the OS (apk)
-      #     packages — the surface we control (a new base digest fixes them, and
+      #     packages - the surface we control (a new base digest fixes them, and
       #     check-upstream picks that up). Go-stdlib CVEs in the base image's
       #     gosu binary are NOT gated: we can't rebuild gosu (the postgres image
       #     owns its Go version), so blocking on them would wedge every publish.
@@ -243,8 +247,12 @@ jobs:
           # which otherwise triples the artifact count on the package page.
           cosign sign "${IMAGE}@${{ steps.manifest.outputs.digest }}"
 
+      # Pinned to an exact version, like trivy-action above. On a floating v0 any
+      # minor may break under semver, and this step runs AFTER the tags have
+      # already been moved - so a breaking release leaves tags pointing at images
+      # with no SBOM attached rather than failing before anything is published.
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@v0.24.0
         with:
           image: ${{ steps.manifest.outputs.primary }}
           format: spdx-json
@@ -274,7 +282,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # Auto-release: once all majors are published, cut a dated git tag + GitHub
   # Release recording this version. Runs only on main, only when the triggering
-  # commit changed manifest.json (i.e. an actual version bump — not doc pushes),
+  # commit changed manifest.json (i.e. an actual version bump - not doc pushes),
   # and is idempotent (a same-day re-bump gets a .N suffix). This is what makes
   # the pipeline self-tagging end to end: a bump merge publishes AND releases.
   # ---------------------------------------------------------------------------
@@ -300,7 +308,7 @@ jobs:
           # manifest.json; doc-only pushes and re-dispatches do not.
           if git rev-parse -q --verify HEAD~1 >/dev/null 2>&1; then
             if ! git diff --name-only HEAD~1 HEAD | grep -qx 'manifest.json'; then
-              echo "manifest.json unchanged in this commit — no release"
+              echo "manifest.json unchanged in this commit - no release"
               exit 0
             fi
           fi
@@ -316,7 +324,7 @@ jobs:
             TAG="${BASE}.${n}"; n=$((n+1))
           done
 
-          # NB: don't pre-push the tag then `gh release create` it — there's a
+          # NB: don't pre-push the tag then `gh release create` it - there's a
           # race where GitHub hasn't indexed the fresh tag yet and creation
           # fails transiently. Let gh create the tag at this commit atomically
           # (see `--target` below), so there's exactly one operation.
@@ -333,7 +341,7 @@ jobs:
           section() { # $1=heading  $2=grep-extended-regex
             local body
             body="$(log_subjects | grep -iE "$2" | sed -E 's/^([^|]*)\|(.*)$/- \1 (\2)/' | head -30 || true)"
-            # NB: must be if/fi, not `[ -n ] && {}` — the && form returns 1 on
+            # NB: must be if/fi, not `[ -n ] && {}` - the && form returns 1 on
             # an empty section and set -e silently kills the whole script.
             if [ -n "$body" ]; then
               echo "#### $1"; echo "$body"; echo
@@ -341,7 +349,7 @@ jobs:
           }
 
           {
-            echo "Automated release — pgvector **${PGVECTOR}** on Postgres $(jq -r '.pg_majors | join(", ")' manifest.json) (Alpine)."
+            echo "Automated release - pgvector **${PGVECTOR}** on Postgres $(jq -r '.pg_majors | join(", ")' manifest.json) (Alpine)."
             echo
             echo "### Images"
             for m in $(jq -r '.pg_majors[]' manifest.json); do
@@ -349,11 +357,14 @@ jobs:
             done
             echo
             echo "### Changes"
-            section "⬆️ Upstream bumps" '^chore(\(.*\))?: bump'
-            section "✨ Features"        '^feat(\(.*\))?:'
-            section "🐛 Fixes"           '^fix(\(.*\))?:'
-            section "🔧 CI / build"      '^ci(\(.*\))?:'
-            section "📝 Docs"            '^docs(\(.*\))?:'
+            # Plain ASCII headings on purpose. These strings become the body of
+            # every published GitHub Release, so anything non-ASCII here escapes
+            # the repo and lands in a public artifact.
+            section "Upstream bumps" '^chore(\(.*\))?: bump'
+            section "Features"       '^feat(\(.*\))?:'
+            section "Fixes"          '^fix(\(.*\))?:'
+            section "CI / build"     '^ci(\(.*\))?:'
+            section "Docs"           '^docs(\(.*\))?:'
             # Anything not matching a known prefix.
             other="$(log_subjects | grep -ivE '^((feat|fix|ci|docs)(\(.*\))?:|chore(\(.*\))?: bump)' \
                      | sed -E 's/^([^|]*)\|(.*)$/- \1 (\2)/' | head -30 || true)"
@@ -392,7 +403,7 @@ jobs:
           existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
             --search "in:title \"$title\"" --json number --jq 'length')"
           if [ "$existing" -gt 0 ]; then
-            echo "open failure issue already exists — not duplicating"
+            echo "open failure issue already exists - not duplicating"
             exit 0
           fi
           gh issue create --repo "$GITHUB_REPOSITORY" \
