@@ -1,4 +1,4 @@
-# Keep the GitHub Actions we depend on (checkout, buildx, login, cosign…) current.
+# Keep the GitHub Actions we depend on (checkout, buildx, login, cosign...) current.
 # Image base + pgvector versions are handled by check-upstream.yml, not here.
 version: 2
 updates:
