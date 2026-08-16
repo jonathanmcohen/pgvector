@@ -21,14 +21,31 @@
 # but referenced by the tagged index, so deleting them breaks the published tags.
 # The keep-set below is built from what each tag actually references.
 #
-# STATUS 2026-08-03: the dry run is correct as far as it was checked, but --apply
-# has NOT been validated end-to-end against this package. Deleting a version that
-# some tag still references breaks that tag. Before the first --apply, spot-check
-# a few of the reported orphans by hand:
+# STATUS 2026-08-16: --apply has now been validated end-to-end against this
+# package, and it deleted 36 versions with 0 failures. What was checked, so the
+# next run knows what "validated" actually covers:
 #
-#   docker buildx imagetools inspect --raw ghcr.io/OWNER/pgvector:<tag> | jq -r '.manifests[].digest'
+#   1. The orphan set was recomputed independently, without using this script's
+#      keep-set logic: list every untagged version from the API, list every child
+#      digest referenced by every real-tagged index via
+#      `imagetools inspect --raw <image>@<digest>`, and subtract. Both methods
+#      produced the same 36 digests, diff empty.
+#   2. Of 116 untagged versions, 80 were child manifests of live tag indexes.
+#      That is the danger in the header, measured: GitHub's "delete untagged"
+#      button would have broken 80 manifests behind published tags.
+#   3. All 41 real tags were resolved with `imagetools inspect` after the delete.
+#      0 broken.
 #
-# and confirm none of them list the digest you are about to remove.
+# A CHECK THIS SCRIPT STILL DOES NOT MAKE, and you should: an untagged digest can
+# be orphaned on GHCR and still be the image a container is running right now.
+# Deleting it means that container can never be re-pulled. Before --apply, collect
+# the RepoDigests of anything running the image and confirm none appear in the
+# orphan list:
+#
+#   docker inspect <container> --format '{{range .RepoDigests}}{{.}}{{end}}'
+#
+# On 2026-08-16 `parchment-db` on Carin was running sha256:ed54f8cc..., which was
+# still tagged 17.10-0.8.3 and therefore safe. That was luck, not design.
 #
 # Exit codes: 0 ok, 1 error.
 
