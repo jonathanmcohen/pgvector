@@ -7,8 +7,8 @@
   ],
   "pgvector": "0.8.6",
   "alpine_digests": {
-    "15": "sha256:4006528dcbdd9be8c1aaa50389caea4e93c46d6f54c3533bcd3253725e526e23",
-    "16": "sha256:44c4ee9810eff91f7eab4d822642e01115b1a9eccce4bcbdde7604752d68eac6",
+    "15": "sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b",
+    "16": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
     "17": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
     "18": "sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2"
   },
@@ -18,6 +18,6 @@
     "17": "3.24",
     "18": "3.24"
   },
-  "last_checked_utc": "2026-08-16T06:23:17Z",
+  "last_checked_utc": "2026-08-17T06:33:45Z",
   "latest_alias_target": 17
 }
