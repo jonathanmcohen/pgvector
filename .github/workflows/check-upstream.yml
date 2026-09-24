@@ -29,7 +29,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Detect upstream drift
         id: drift
@@ -72,7 +72,7 @@ jobs:
       - name: Open bump PR
         if: steps.drift.outputs.drift == 'true'
         id: cpr
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@v8.1.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: bot/upstream-bump
