@@ -117,10 +117,20 @@ every major and moves both `:{major}-{pgvector}` and the current patch's
 `:{major}.{patch}-{pgvector}` to the new build, which gets a new digest. That happens
 on any publish, not only on an upstream bump. A CI or script change merged to `main`,
 a manual re-run of the workflow, and a change that only moves `:latest` can all
-trigger one. The new image can differ from the old one even when the Postgres patch
-and the Alpine base digest are unchanged, because the build runs `apk upgrade` to pick
-up current Alpine security fixes. On top of that, `:17-0.8.6` moves to a new Postgres
-17 patch when one ships.
+trigger one. On top of that, `:17-0.8.6` moves to a new Postgres 17 patch when one
+ships.
+
+A new digest does not always mean new contents. The build steps in
+`.github/workflows/build-and-publish.yml` use the GitHub Actions build cache
+(`cache-from: type=gha`, one cache per major and arch). While the base image digest,
+the pgvector version and the Dockerfile build steps are unchanged and the cache entry
+still exists, the build reuses the cached layers. The images inside are then
+byte-identical to the previous publish, and only the build attestations change. The
+contents change when one of those inputs changes, or when the cache misses (for
+example, after GitHub evicts the entry). On a miss the build re-runs `apk upgrade`
+(see `Dockerfile.template`) and picks up whatever Alpine packages are current at that
+moment, so the contents can change even with the same Postgres patch and base digest.
+A republish with a warm cache does not pick up new Alpine fixes.
 
 Pinning by digest (`ghcr.io/jonathanmcohen/pgvector@sha256:...`) fixes the image
 contents, but old digests are not guaranteed to stay pullable. Once a publish moves
