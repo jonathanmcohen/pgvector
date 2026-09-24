@@ -252,7 +252,7 @@ jobs:
       # already been moved - so a breaking release leaves tags pointing at images
       # with no SBOM attached rather than failing before anything is published.
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0.24.0
+        uses: anchore/sbom-action@v0.24.2
         with:
           image: ${{ steps.manifest.outputs.primary }}
           format: spdx-json
