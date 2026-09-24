@@ -129,11 +129,27 @@ or `scripts/` are not on that list.
   subject of any PR that changes no image content, such as action bumps, workflow
   edits and script fixes. GitHub skips push-triggered workflows for a commit whose
   message contains it.
-- **Dependabot adds it for you.** [`.github/dependabot.yml`](./.github/dependabot.yml)
-  groups all action updates from a weekly run into one PR and prefixes the commit and
+- **Dependabot adds it, but check it.** [`.github/dependabot.yml`](./.github/dependabot.yml)
+  groups the action updates from a weekly run into one PR and prefixes the commit and
   the PR title with `ci: [skip ci] `. The squash subject comes from the commit when the
-  PR has one commit and from the PR title when it has more, so it carries the marker
-  either way. Do not remove it when merging.
+  PR has one commit and from the PR title when it has more, so it should carry the
+  marker either way. Dependabot drops a prefix without warning if building it fails,
+  so before you squash-merge, confirm `[skip ci]` is in the squash subject, and add it
+  if it is missing. Do not remove it, except for cosign-installer below.
+- **Exception: `sigstore/cosign-installer`.** A new cosign has to be proven by a live
+  sign-and-verify, not first run unattended on the next upstream bump, where the tags
+  are moved before cosign runs. Dependabot cannot set a prefix per dependency, so the
+  config keeps cosign-installer out of the group and ignores its major versions:
+  - A minor or patch bump opens its own PR, still titled `ci: [skip ci] ...`. Delete
+    `[skip ci]` from the squash subject when you merge it, so the merge runs
+    `build-and-publish`.
+  - A major bump (v3 to v4, which brings cosign v3) is manual: move the `uses:` pin to
+    the exact v4 release tag in a PR of its own and merge it without `[skip ci]`.
+  - Either way, watch that run: the `Cosign sign (keyless)` and `Attest SBOM` steps
+    must pass for all four majors, and the new indexes must carry a signature and an
+    SBOM attestation (the `.sig` and `.att` tags today; cosign v3 writes a new bundle
+    format, so for the v4 upgrade check with `cosign verify` and
+    `cosign verify-attestation`).
 - **A skipped action bump runs on the next publish**: the next upstream bump that
   `check-upstream` merges, or a manual run of `build-and-publish`.
 - **Leave the marker off when you want the republish**, for example a change to

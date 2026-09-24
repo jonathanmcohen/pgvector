@@ -6,13 +6,27 @@
 # Merging one to main without a skip marker rebuilds and republishes all four
 # PG majors (new digests, signatures and SBOMs) with no image content change.
 #
-# - groups: all action updates from one weekly run land in a single PR.
+# - groups: all action updates from one weekly run land in a single PR,
+#   except sigstore/cosign-installer (see below).
 # - prefix: puts [skip ci] in the commit subject AND the PR title, so the
 #   squash-merge subject carries it whether GitHub takes it from the single
 #   commit or from the PR title. The trailing space is deliberate: Dependabot
 #   adds a colon after a prefix that ends in a letter, digit, ")" or "]", and a
 #   trailing space stops that. Result:
 #   "ci: [skip ci] bump the actions group with 2 updates".
+#
+# sigstore/cosign-installer is the exception. A new cosign must be proven by a
+# live sign-and-verify, and a skipped bump would first run unattended on the
+# next upstream-bump publish, where the tags are moved BEFORE cosign runs, so a
+# cosign failure would leave new tags unsigned and unattested. Dependabot has
+# no per-dependency prefix (commit-message.prefix applies to the whole entry,
+# and a second github-actions entry for "/" would overlap this one), so:
+# - exclude-patterns keeps it out of the [skip ci] group; a minor or patch bump
+#   opens its own PR, which still carries the prefix. README.md, Maintenance,
+#   says to drop the marker when merging it.
+# - ignore drops its major updates (v3 -> v4 brings cosign v3). That upgrade
+#   is manual: a hand-made PR merged without [skip ci], then a sign-and-verify
+#   check on the published indexes.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -23,6 +37,12 @@ updates:
       actions:
         patterns:
           - "*"
+        exclude-patterns:
+          - "sigstore/cosign-installer"
+    ignore:
+      - dependency-name: "sigstore/cosign-installer"
+        update-types:
+          - "version-update:semver-major"
     commit-message:
       prefix: "ci: [skip ci] "
     labels:
