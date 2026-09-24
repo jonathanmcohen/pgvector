@@ -122,15 +122,19 @@ ships.
 
 A new digest does not always mean new contents. The build steps in
 `.github/workflows/build-and-publish.yml` use the GitHub Actions build cache
-(`cache-from: type=gha`, one cache per major and arch). While the base image digest,
-the pgvector version and the Dockerfile build steps are unchanged and the cache entry
-still exists, the build reuses the cached layers. The images inside are then
-byte-identical to the previous publish, and only the build attestations change. The
-contents change when one of those inputs changes, or when the cache misses (for
-example, after GitHub evicts the entry). On a miss the build re-runs `apk upgrade`
-(see `Dockerfile.template`) and picks up whatever Alpine packages are current at that
-moment, so the contents can change even with the same Postgres patch and base digest.
-A republish with a warm cache does not pick up new Alpine fixes.
+(`cache-from: type=gha`, one cache per major and arch). The cache follows each arch's
+own base image, not the multi-arch index digest that `manifest.json` records. While
+that per-arch base image, the pgvector version and the Dockerfile build steps are
+unchanged and the cache entry still exists, the build reuses the cached layers. The
+images inside are then byte-identical to the previous publish, and only the build
+attestations change. That includes a bump that moves only the index digest: the
+2026-09-21 bump (#23) moved all four digests in `manifest.json`, and all four majors
+published byte-identical images. The contents change when one of those inputs changes,
+or when the cache misses (for example, after GitHub evicts the entry). On a miss the
+build re-runs `apk upgrade` (see `Dockerfile.template`) and picks up whatever Alpine
+packages are current at that moment, so the contents can change even with the same
+Postgres patch and base image. A publish with a warm cache, including a bot bump, does
+not pick up new Alpine fixes.
 
 Pinning by digest (`ghcr.io/jonathanmcohen/pgvector@sha256:...`) fixes the image
 contents, but old digests are not guaranteed to stay pullable. Once a publish moves
