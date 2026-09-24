@@ -21,12 +21,17 @@ these sources:
 - [`manifest.json`](./manifest.json) is the source of truth. It holds the pgvector
   version (`pgvector`), the pinned base-image digest and informational Alpine version
   per major (`alpine_digests`, `alpine_versions`), the time of the last upstream check
-  (`last_checked_utc`), and which major `:latest` points at (`latest_alias_target`).
+  that found drift (`last_checked_utc`; a check that finds nothing new does not update
+  it), and which major `:latest` points at (`latest_alias_target`).
   The pgvector and last-checked badges at the top of this page read it live.
 - The [latest release](https://github.com/jonathanmcohen/pgvector/releases/latest) is
-  named `<date>-pgvector<version>` and is cut on every published bump.
+  named `<date>-pgvector<version>`, with a `.1`, `.2`, ... suffix for a repeat on the
+  same UTC day. A release is cut after a successful publish from `main` whenever the
+  published commit changed `manifest.json`. That covers upstream bumps, but also
+  manifest-only changes such as moving `:latest`, so a new release does not always
+  mean new versions.
 - The [GHCR package page](https://github.com/jonathanmcohen/pgvector/pkgs/container/pgvector)
-  lists every published tag, including the exact Postgres patch (`:{major}.{patch}-{pgvector}`).
+  lists every published tag, including the Postgres patch tags (`:{major}.{patch}-{pgvector}`).
 
 | PG major | Moving tag | Pinned tag | Arch |
 |---|---|---|---|
@@ -35,11 +40,15 @@ these sources:
 | 17 | `ghcr.io/jonathanmcohen/pgvector:17` | `:17-<pgvector>` | amd64, arm64 |
 | 18 | `ghcr.io/jonathanmcohen/pgvector:18` | `:18-<pgvector>` | amd64, arm64 |
 
-To print the pgvector version currently published from `main`:
+To print the pgvector version in `manifest.json` on `main`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jonathanmcohen/pgvector/main/manifest.json | jq -r .pgvector
 ```
+
+GHCR can lag behind `main`. The bot merges a bump to `main` first and publishes
+afterwards, so if the last build-and-publish run failed (see the badge at the top),
+GHCR can still be on the previous version.
 
 > The Alpine version is informational. The real lock is the pinned base-image digest in
 > [`manifest.json`](./manifest.json). Bare `<major>-alpine` tracks the latest Alpine; an
@@ -103,11 +112,22 @@ Production deployments should pin a pgvector version, for example `:17-0.8.6` (o
 `:17.11-0.8.6`), not the moving `:17` tag. The moving tags advance automatically as
 upstream releases.
 
-Pinned tags narrow what can change, but they are not frozen. Every publish re-applies
-`:{major}-{pgvector}` and `:{major}.{patch}-{pgvector}` to the new build. So
-`:17-0.8.6` moves to a new Postgres 17 patch, and both forms move to a new image when
-the Alpine base digest changes. To freeze an exact image, pin by digest
-(`ghcr.io/jonathanmcohen/pgvector@sha256:...`).
+Pinned tags narrow what can change, but they are not frozen. Every publish rebuilds
+every major and moves both `:{major}-{pgvector}` and the current patch's
+`:{major}.{patch}-{pgvector}` to the new build, which gets a new digest. That happens
+on any publish, not only on an upstream bump. A CI or script change merged to `main`,
+a manual re-run of the workflow, and a change that only moves `:latest` can all
+trigger one. The new image can differ from the old one even when the Postgres patch
+and the Alpine base digest are unchanged, because the build runs `apk upgrade` to pick
+up current Alpine security fixes. On top of that, `:17-0.8.6` moves to a new Postgres
+17 patch when one ships.
+
+Pinning by digest (`ghcr.io/jonathanmcohen/pgvector@sha256:...`) fixes the image
+contents, but old digests are not guaranteed to stay pullable. Once a publish moves
+every tag off an image, no tag references it any more, and those are the images the
+maintainer's cleanup script (`scripts/prune-ghcr.sh --apply`) deletes. After a prune,
+a digest pin to a superseded image fails to pull. If you need an image you can always
+pull again, copy it to a registry you control and pin that copy.
 
 ## How it works
 
@@ -115,7 +135,7 @@ the Alpine base digest changes. To freeze an exact image, pin by digest
  daily cron -> check-upstream.sh -> drift? -> bump manifest.json + re-render variants
                                        |                     |
                                        | no                  v
-                                       v            bot/upstream-bump-<date> branch
+                                       v            bot/upstream-bump branch
                                     exit 0                    |
                                                               v
                                                   PR  "chore: bump postgres/pgvector"
@@ -150,7 +170,8 @@ manifest.json           source of truth: pgvector version + alpine digests
 scripts/                check-upstream, render-dockerfiles, smoke-test
 variants/{15..18}/      generated Dockerfiles (do not hand-edit)
 examples/               docker-compose consumer example
-.github/workflows/      CI: build-and-publish, check-upstream, release, auto-merge
+.github/workflows/      build-and-publish.yml (build, smoke, publish; release is a job in it)
+                        check-upstream.yml (daily drift check, bump PR, auto-merge)
 ```
 
 ## License
