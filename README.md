@@ -27,7 +27,12 @@ Current source of truth: [`manifest.json`](./manifest.json) — **pgvector `0.8.
 > [`manifest.json`](./manifest.json). Bare `<major>-alpine` tracks the latest Alpine; an
 > Alpine rebase changes the digest, which triggers an automatic bump.
 
-`ghcr.io/jonathanmcohen/pgvector:latest` aliases the current stable major (**17** today; bumps to 18 ~30 days after upstream PG 18 GA).
+`ghcr.io/jonathanmcohen/pgvector:latest` aliases the current stable major: **18** (previously 17; set by `latest_alias_target` in [`manifest.json`](./manifest.json)).
+If you ran `:latest` on PG 17 with persistent data, pin `:17` instead: a PG 17 data directory
+will not start under PG 18, and PG 18's image keeps PGDATA at `/var/lib/postgresql/18/docker`
+rather than `/var/lib/postgresql/data`.
+For a new PG 18 volume, mount `/var/lib/postgresql`, not `/var/lib/postgresql/data`: the PG 18
+entrypoint refuses to start when `.../data` is itself a mount.
 
 ### Tag scheme
 
