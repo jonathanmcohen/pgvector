@@ -236,7 +236,7 @@ jobs:
           echo "primary=${IMAGE}:${MAJOR}-${PGVECTOR}" >> "$GITHUB_OUTPUT"
           echo "published ${IMAGE}:${MAJOR}-${PGVECTOR} @ ${digest}"
 
-      - uses: sigstore/cosign-installer@v3.10.1
+      - uses: sigstore/cosign-installer@v3.9.1
 
       - name: Cosign sign (keyless)
         env:
