@@ -1,13 +1,30 @@
 # Keep the GitHub Actions we depend on (checkout, buildx, login, cosign...) current.
 # Image base + pgvector versions are handled by check-upstream.yml, not here.
+#
+# Every action is pinned to an exact release tag, so every update edits a file
+# under .github/workflows/, which build-and-publish.yml does not paths-ignore.
+# Merging one to main without a skip marker rebuilds and republishes all four
+# PG majors (new digests, signatures and SBOMs) with no image content change.
+#
+# - groups: all action updates from one weekly run land in a single PR.
+# - prefix: puts [skip ci] in the commit subject AND the PR title, so the
+#   squash-merge subject carries it whether GitHub takes it from the single
+#   commit or from the PR title. The trailing space is deliberate: Dependabot
+#   adds a colon after a prefix that ends in a letter, digit, ")" or "]", and a
+#   trailing space stops that. Result:
+#   "ci: [skip ci] bump the actions group with 2 updates".
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns:
+          - "*"
     commit-message:
-      prefix: "ci"
+      prefix: "ci: [skip ci] "
     labels:
       - "dependencies"
       - "github-actions"

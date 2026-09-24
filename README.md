@@ -116,6 +116,29 @@ smoke-test failure) opens a GitHub Issue tagging the maintainer instead of mergi
 Humans close those Issues after fixing the root cause. All bot changes are auditable
 in PR history.
 
+## Maintenance
+
+A push to `main` republishes all four majors (new digests, signatures and SBOMs,
+plus a release when `manifest.json` changed) unless every file it touches is in the
+`paths-ignore` list of
+[`build-and-publish.yml`](./.github/workflows/build-and-publish.yml): `**.md`,
+`examples/**`, `LICENSE`, `.github/dependabot.yml`. Edits under `.github/workflows/`
+or `scripts/` are not on that list.
+
+- **Use `[skip ci]` when a change should not republish.** Put it in the squash-merge
+  subject of any PR that changes no image content, such as action bumps, workflow
+  edits and script fixes. GitHub skips push-triggered workflows for a commit whose
+  message contains it.
+- **Dependabot adds it for you.** [`.github/dependabot.yml`](./.github/dependabot.yml)
+  groups all action updates from a weekly run into one PR and prefixes the commit and
+  the PR title with `ci: [skip ci] `. The squash subject comes from the commit when the
+  PR has one commit and from the PR title when it has more, so it carries the marker
+  either way. Do not remove it when merging.
+- **A skipped action bump runs on the next publish**: the next upstream bump that
+  `check-upstream` merges, or a manual run of `build-and-publish`.
+- **Leave the marker off when you want the republish**, for example a change to
+  `manifest.json`, `Dockerfile.template` or `variants/`.
+
 ## Repo layout
 
 ```
