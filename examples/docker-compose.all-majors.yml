@@ -1,5 +1,7 @@
-# All four Postgres majors side by side, each fully pinned (production style).
-# Distinct host ports + named volumes so they coexist on one host.
+# All four Postgres majors side by side, each pinned to a pgvector version
+# (production style). Distinct host ports + named volumes so they coexist on
+# one host. The pins below were current when this file was written; the current
+# pgvector version is in manifest.json and in the latest GitHub Release name.
 #
 #   docker compose -f examples/docker-compose.all-majors.yml up -d
 #   # then, per service, enable the extension once:
@@ -9,7 +11,7 @@
 # Host port convention: 54<major> -> container 5432.
 services:
   pg15:
-    image: ghcr.io/jonathanmcohen/pgvector:15-0.8.3
+    image: ghcr.io/jonathanmcohen/pgvector:15-0.8.6
     container_name: pgvector15
     restart: unless-stopped
     environment:
@@ -26,7 +28,7 @@ services:
       retries: 5
 
   pg16:
-    image: ghcr.io/jonathanmcohen/pgvector:16-0.8.3
+    image: ghcr.io/jonathanmcohen/pgvector:16-0.8.6
     container_name: pgvector16
     restart: unless-stopped
     environment:
@@ -43,7 +45,7 @@ services:
       retries: 5
 
   pg17:
-    image: ghcr.io/jonathanmcohen/pgvector:17-0.8.3
+    image: ghcr.io/jonathanmcohen/pgvector:17-0.8.6
     container_name: pgvector17
     restart: unless-stopped
     environment:
@@ -60,7 +62,7 @@ services:
       retries: 5
 
   pg18:
-    image: ghcr.io/jonathanmcohen/pgvector:18-0.8.3
+    image: ghcr.io/jonathanmcohen/pgvector:18-0.8.6
     container_name: pgvector18
     restart: unless-stopped
     environment:
@@ -70,7 +72,7 @@ services:
       - "5418:5432"
     volumes:
       # PG 18's image moved PGDATA to /var/lib/postgresql/18/docker and declares
-      # its VOLUME at /var/lib/postgresql — mount the parent, NOT .../data.
+      # its VOLUME at /var/lib/postgresql. Mount the parent, NOT .../data.
       - pg18data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
