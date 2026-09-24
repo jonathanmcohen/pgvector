@@ -80,7 +80,7 @@ summary=""
 
 if [ "$new_pgvector" != "$cur_pgvector" ]; then
   changed=1
-  summary+="- pgvector: \`${cur_pgvector}\` → \`${new_pgvector}\`"$'\n'
+  summary+="- pgvector: \`${cur_pgvector}\` -> \`${new_pgvector}\`"$'\n'
 fi
 
 # Build the new digest + alpine-version maps and detect per-major drift.
@@ -98,9 +98,9 @@ for major in $MAJORS; do
   if [ "$new" != "$cur" ]; then
     changed=1
     if [ "$new_av" != "$cur_av" ]; then
-      summary+="- postgres:${major}-alpine: digest \`${cur:0:19}…\` → \`${new:0:19}…\` (alpine ${cur_av:-?} → ${new_av})"$'\n'
+      summary+="- postgres:${major}-alpine: digest \`${cur:0:19}...\` -> \`${new:0:19}...\` (alpine ${cur_av:-?} -> ${new_av})"$'\n'
     else
-      summary+="- postgres:${major}-alpine: digest \`${cur:0:19}…\` → \`${new:0:19}…\` (alpine ${new_av})"$'\n'
+      summary+="- postgres:${major}-alpine: digest \`${cur:0:19}...\` -> \`${new:0:19}...\` (alpine ${new_av})"$'\n'
     fi
   fi
   digest_args+=(--arg "d${major}" "$new")
