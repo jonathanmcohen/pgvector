@@ -160,7 +160,7 @@ jobs:
           mkdir -p digests
           echo "${{ steps.push.outputs.digest }}" > "digests/${{ matrix.major }}-${{ matrix.arch.suffix }}"
 
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: digest-${{ matrix.major }}-${{ matrix.arch.suffix }}
           path: digests/${{ matrix.major }}-${{ matrix.arch.suffix }}
@@ -188,7 +188,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/download-artifact@v8.0.1
+      - uses: actions/download-artifact@v8.0.2
         with:
           pattern: digest-${{ matrix.major }}-*
           path: digests
