@@ -7,10 +7,10 @@
   ],
   "pgvector": "0.8.7",
   "alpine_digests": {
-    "15": "sha256:d2c2ced0372e855e4c257a9e9b5725f403847c01cfb64facbf2b21dbdadb2d74",
-    "16": "sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815",
-    "17": "sha256:1bcc18d81671b02906296aad470ec9778a6b71016ce953092024b680bad007b0",
-    "18": "sha256:83148c0bc09eac4d598b70a61e1404d0212b76c95c504bfd6c81a4c59ec91792"
+    "15": "sha256:a8e042598834300dfaa17a54f695b87b7f25d3490433bbbe2ef3bffbb9747f24",
+    "16": "sha256:f4610795587492cd4fb887c2dc3de301b813278bb6f616992061141b5f15ac36",
+    "17": "sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb",
+    "18": "sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5"
   },
   "alpine_versions": {
     "15": "3.24",
@@ -18,6 +18,6 @@
     "17": "3.24",
     "18": "3.24"
   },
-  "last_checked_utc": "2026-10-22T10:51:14Z",
+  "last_checked_utc": "2026-10-23T10:42:36Z",
   "latest_alias_target": 18
 }
